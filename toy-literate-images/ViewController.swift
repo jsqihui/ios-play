@@ -8,14 +8,71 @@
 
 import UIKit
 import Photos
+import CoreImage
 
 class ViewController: UIViewController {
+
+    private var notification: NSObjectProtocol?
     
     var images = [UIImage]()
     var photo: UIImage? = nil
+
     
     @IBOutlet weak var imageShow: UIImageView!
     
+    private func detectFaces(personPic: UIImageView){
+        
+        guard let personciImage = CIImage(image: personPic.image!) else{
+            return
+        }
+        for view in personPic.subviews{
+            view.removeFromSuperview()
+        }
+        
+        let accuracy = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorAspectRatio: 1.0] as [String : Any]
+        let faceDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: accuracy)
+        let faces = faceDetector?.features(in: personciImage)
+        print("detect faces")
+        print(faces?.count)
+        // Convert Core Image Coordinate to UIView Coordinate
+        let ciImageSize = personciImage.extent.size
+        var transform = CGAffineTransform(scaleX: 1, y: -1)
+        transform = transform.translatedBy(x: 0, y: -ciImageSize.height)
+        for face in faces as! [CIFaceFeature] {
+            
+            print("Found bounds are \(face.bounds)")
+            
+            // Apply the transform to convert the coordinates
+            var faceViewBounds = face.bounds.applying(transform)
+            
+            // Calculate the actual position and size of the rectangle in the image view
+            let viewSize = personPic.bounds.size
+            let scale = min(viewSize.width / ciImageSize.width,
+                            viewSize.height / ciImageSize.height)
+            let offsetX = (viewSize.width - ciImageSize.width * scale) / 2
+            let offsetY = (viewSize.height - ciImageSize.height * scale) / 2
+            
+            faceViewBounds = faceViewBounds.applying(CGAffineTransform(scaleX: scale, y: scale))
+            faceViewBounds.origin.x += offsetX
+            faceViewBounds.origin.y += offsetY
+            
+            let faceBox = UIView(frame: faceViewBounds)
+            
+            faceBox.layer.borderWidth = 3
+            faceBox.layer.borderColor = UIColor.red.cgColor
+            faceBox.backgroundColor = UIColor.clear
+            personPic.addSubview(faceBox)
+            
+            if face.hasLeftEyePosition {
+                print("Left eye bounds are \(face.leftEyePosition)")
+            }
+            
+            if face.hasRightEyePosition {
+                print("Right eye bounds are \(face.rightEyePosition)")
+            }
+        }
+    }
+
     private func getPhotos() {
         let fetchOptions = PHFetchOptions()
         
@@ -57,6 +114,8 @@ class ViewController: UIViewController {
         
         self.imageShow.image = self.images.last
         
+        self.detectFaces(personPic: self.imageShow)
+        
         print(self.images.count)
     }
     
@@ -64,13 +123,26 @@ class ViewController: UIViewController {
     {
         self.images.append(uploadImage)
         
+        
     }
 
+    func willEnterForeground(_ notification: NSNotification!) {
+        // do whatever you want when the app is brought back to the foreground
+        self.getPhotos()
+    }
+    
+    deinit {
+        // make sure to remove the observer when this view controller is dismissed/deallocated
+        
+        NotificationCenter.default.removeObserver(self)
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         // self.FetchCustomAlbumPhotos()
         self.getPhotos()
+        NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground(_:)), name: .UIApplicationWillEnterForeground, object: nil)
     }
 
     override func didReceiveMemoryWarning() {
