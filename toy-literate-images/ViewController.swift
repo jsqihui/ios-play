@@ -20,6 +20,30 @@ class ViewController: UIViewController {
     
     @IBOutlet weak var imageShow: UIImageView!
     
+    
+    private func postFaceRepresentation(url: String, faceVector: String){
+        var request = URLRequest(url: URL(string: url)!)
+        request.httpMethod = "POST"
+        let postString = "id=13&name=Jack"
+        request.httpBody = postString.data(using: .utf8)
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data, error == nil else {                                                 // check for fundamental networking error
+                print("error=\(error)")
+                return
+            }
+            
+            if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {           // check for http errors
+                print("statusCode should be 200, but is \(httpStatus.statusCode)")
+                print("response = \(response)")
+            }
+            
+            let responseString = String(data: data, encoding: .utf8)
+            print("responseString = \(responseString)")
+        }
+        task.resume()
+    }
+    
+    
     private func detectFaces(personPic: UIImageView){
         
         guard let personciImage = CIImage(image: personPic.image!) else{
@@ -38,12 +62,21 @@ class ViewController: UIViewController {
         let ciImageSize = personciImage.extent.size
         var transform = CGAffineTransform(scaleX: 1, y: -1)
         transform = transform.translatedBy(x: 0, y: -ciImageSize.height)
+        var faceCropUI: UIImage? = nil
         for face in faces as! [CIFaceFeature] {
             
             print("Found bounds are \(face.bounds)")
             
+            // self.imageShow.image = faceCropUI
+            
+
+            
             // Apply the transform to convert the coordinates
             var faceViewBounds = face.bounds.applying(transform)
+            
+            // get the cropped image
+            var faceImage = (personPic.image?.cgImage)!.cropping(to: faceViewBounds)
+            faceCropUI = UIImage.init(cgImage: faceImage!)
             
             // Calculate the actual position and size of the rectangle in the image view
             let viewSize = personPic.bounds.size
@@ -56,6 +89,8 @@ class ViewController: UIViewController {
             faceViewBounds.origin.x += offsetX
             faceViewBounds.origin.y += offsetY
             
+            
+            
             let faceBox = UIView(frame: faceViewBounds)
             
             faceBox.layer.borderWidth = 3
@@ -64,13 +99,14 @@ class ViewController: UIViewController {
             personPic.addSubview(faceBox)
             
             if face.hasLeftEyePosition {
-                print("Left eye bounds are \(face.leftEyePosition)")
+                //print("Left eye bounds are \(face.leftEyePosition)")
             }
             
             if face.hasRightEyePosition {
-                print("Right eye bounds are \(face.rightEyePosition)")
+                //print("Right eye bounds are \(face.rightEyePosition)")
             }
         }
+        // self.imageShow.image = faceCropUI
     }
 
     private func getPhotos() {
@@ -111,6 +147,7 @@ class ViewController: UIViewController {
                 
             }
         })
+
         
         self.imageShow.image = self.images.last
         
